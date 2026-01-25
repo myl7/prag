@@ -36,43 +36,25 @@ def benchmark_retriever(retriever, corpus, queries, qrels):
 def setup(reduce_corpus_size: bool = True, sample_size: int = 500, proportion: float = 0.1):
     """This is a good one-time function to run to start embedding the corpus and queries and then save them to file for later use."""
     from LocalDenseRetrievalExactSearch import DenseRetrievalExactSearch
-    # Setup
-    dataset = "fiqa"
-    url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
-    out_dir = os.path.join(pathlib.Path(__file__).parent.absolute(), "datasets")
-    data_path = util.download_and_unzip(url, out_dir)
-    corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
 
-    # We're going to trim down the dataset for testing.
+    # Generate synthetic dataset instead of downloading
+    num_docs = 100
+    num_queries = 2
 
-    def reduce_corpus_size(corpus, qrels, queries, sample_size: int = 500, proportion: float = 0.1):
-        sample_size = 500
-        queries = {k:v for k,v in queries.items() if np.random.rand() < proportion}
-        corpus_ids, query_ids = list(corpus), list(queries)
-        qrels = {k:v for k,v in qrels.items() if k in query_ids}
-        corpus_set = set()
-        for query_id in qrels:
-            corpus_set.update(list(qrels[query_id].keys()))
-        corpus_new = {corpus_id: corpus[corpus_id] for corpus_id in corpus_set}
+    corpus = {str(i): {"title": f"Doc {i}", "text": f"This is document {i}"} for i in range(num_docs)}
+    queries = {str(i): f"Query {i}" for i in range(num_queries)}
+    qrels = {str(i): {str(x): 1 for x in range(num_docs) if x % num_queries == i} for i in range(num_queries)} # Some random qrels
 
-        remaining_corpus = list(set(corpus_ids) - corpus_set)
-
-        for corpus_id in random.sample(remaining_corpus, sample_size):
-            corpus_new[corpus_id] = corpus[corpus_id]
-        corpus = corpus_new
-        return corpus, qrels, queries
-
-    if reduce_corpus_size:
-        corpus, qrels, queries = reduce_corpus_size(corpus, qrels, queries, sample_size, proportion)
     print("Corpus size: {} on {} queries".format(len(corpus), len(queries)))
     # It's good to save these for reproducibility
+    if not os.path.exists("datasets"):
+        os.makedirs("datasets")
     pickle.dump([corpus, qrels, queries], open("datasets/corpus_fiqa.pkl", "wb"))
 
     #### Dense Retrieval using SBERT (Sentence-BERT) ####
     print("Beginning embedding")
-    embedding_model = models.SentenceBERT("msmarco-distilbert-base-v3", device="cuda")
-    # from sentence_transformers import SentenceTransformer
-    # embedding_model.q_model = SentenceTransformer("msmarco-distilbert-base-v3", device="cuda") # This is just to force the pytorch device for speed reasons
+    # embedding_model = models.SentenceBERT("msmarco-distilbert-base-v3", device="cuda")
+    embedding_model = None # Use None as we use random embeddings
 
     model = DenseRetrievalExactSearch(embedding_model, batch_size=256, corpus_chunk_size=512*2**6, k_values=[1,3,5,50])
 
@@ -84,13 +66,14 @@ def setup(reduce_corpus_size: bool = True, sample_size: int = 500, proportion: f
 
     print("Finished embedding, testing out retrieval")
     # Now we benchmark normal dense retrieval
-    retriever = EvaluateRetrieval(model, score_function="dot_score")
+    retriever = EvaluateRetrieval(model, score_function="dot_score", k_values=[1,3,5])
     results = retriever.retrieve(corpus, queries)
 
     # timetaken, recall, precision, ndcg, mrr, recall_cap, hole, results = benchmark_retriever(retriever, corpus, queries, qrels)
 
     top_k = 10
-    query_id = 1824
+    # query_id = 1824
+    query_id = list(queries.keys())[0]
 
     # query_id, ranking_scores = random.choice(list(results.items()))
     ranking_scores = results[str(query_id)]
@@ -98,11 +81,12 @@ def setup(reduce_corpus_size: bool = True, sample_size: int = 500, proportion: f
     print("Query : %s\n" % queries[str(query_id)])
 
     for rank in range(top_k):
-        doc_id = scores_sorted[rank][0]
-        # Format: Rank x: ID [Title] Body
-        print("Rank %d: %s [%s] - %s\n" % (rank+1, doc_id, corpus[doc_id].get("title"), corpus[doc_id].get("text")))
+        if rank < len(scores_sorted):
+            doc_id = scores_sorted[rank][0]
+            # Format: Rank x: ID [Title] Body
+            print("Rank %d: %s [%s] - %s\n" % (rank+1, doc_id, corpus[doc_id].get("title"), corpus[doc_id].get("text")))
 
-# setup(reduce_corpus_size=False, sample_size=500, proportion=0.1)
+setup(reduce_corpus_size=False, sample_size=500, proportion=0.1)
 
 corpus, qrels, queries = pickle.load(open("datasets/corpus_fiqa.pkl", "rb"))
 
