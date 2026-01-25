@@ -15,7 +15,7 @@ class DenseRetrievalExactSearch(BaseSearch):
     This is a modified version of `beir.retrieval.search.dense.DenseRetrievalExactSearch` for use with testing distance metric functions. The original DenseRetrievalExactSearch class would do embeddings of the entire corpus on every call of the key `search` method. To save on time (since we fix our embedding model), we rewrite the class to do the embedding of the corpus only once, and then use the embeddings to calculate the similarity measures. 
     """
     
-    def __init__(self, model, batch_size: int = 128, corpus_chunk_size: int = 50000, **kwargs):
+    def __init__(self, model, batch_size: int = 128, corpus_chunk_size: int = 50000, random_embeddings: bool = True, **kwargs):
         #model is class that provides encode_corpus() and encode_queries()
         self.model = model
         self.batch_size = batch_size
@@ -26,6 +26,9 @@ class DenseRetrievalExactSearch(BaseSearch):
         self.results = {}
         self.corpus_embeddings = None
         self.query_embeddings = None
+        self.random_embeddings = random_embeddings
+        if self.random_embeddings:
+            logger.warning("LocalDenseRetrievalExactSearch: Random embeddings logic hijacked! Using random embeddings instead of model.")
     
     def train_model(**args):
         raise NotImplementedError("This function should only be used by MPCDenseRetrievalExactSearch")
@@ -44,12 +47,19 @@ class DenseRetrievalExactSearch(BaseSearch):
             corpus_end_idx = min(corpus_start_idx + self.corpus_chunk_size, len(corpus))
 
             # Encode chunk of corpus    
-            sub_corpus_embeddings = self.model.encode_corpus(
-                corpus[corpus_start_idx:corpus_end_idx],
-                batch_size=self.batch_size,
-                show_progress_bar=self.show_progress_bar, 
-                convert_to_tensor = self.convert_to_tensor
-                )
+            if self.random_embeddings:
+                try:
+                    dim = self.model.doc_model.get_sentence_embedding_dimension()
+                except:
+                    dim = 768
+                sub_corpus_embeddings = torch.randn(len(corpus[corpus_start_idx:corpus_end_idx]), dim)
+            else:
+                sub_corpus_embeddings = self.model.encode_corpus(
+                    corpus[corpus_start_idx:corpus_end_idx],
+                    batch_size=self.batch_size,
+                    show_progress_bar=self.show_progress_bar, 
+                    convert_to_tensor = self.convert_to_tensor
+                    )
             # Add embeddings to the large matrix
             if batch_num == 0:
                 corpus_embeddings = sub_corpus_embeddings
@@ -64,8 +74,15 @@ class DenseRetrievalExactSearch(BaseSearch):
 
     def preembed_queries(self, queries: Dict[str, str], save_path: str = None) -> None:
         queries = [queries[qid] for qid in queries]
-        query_embeddings = self.model.encode_queries(
-            queries, batch_size=self.batch_size, show_progress_bar=self.show_progress_bar, convert_to_tensor=self.convert_to_tensor).to('cpu')
+        if self.random_embeddings:
+            try:
+                dim = self.model.q_model.get_sentence_embedding_dimension()
+            except:
+                dim = 768
+            query_embeddings = torch.randn(len(queries), dim)
+        else:
+            query_embeddings = self.model.encode_queries(
+                queries, batch_size=self.batch_size, show_progress_bar=self.show_progress_bar, convert_to_tensor=self.convert_to_tensor).to('cpu')
         self.query_embeddings = query_embeddings
         if save_path:
             torch.save(query_embeddings, save_path)

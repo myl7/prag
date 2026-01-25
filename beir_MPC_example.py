@@ -119,10 +119,10 @@ print("Loaded embeddings")
 
 
 # print("Running basic retrieval")
-retriever = EvaluateRetrieval(model, score_function="dot_score",  k_values=[1,3,5,10])
-timetaken, recall, *the_rest =benchmark_retriever(retriever, corpus, queries, qrels)
-pickle.dump([timetaken, recall, *the_rest], open("beir_results_dot_score.pkl", "wb"))
-print(timetaken, recall)
+# retriever = EvaluateRetrieval(model, score_function="dot_score",  k_values=[1,3,5,10])
+# timetaken, recall, *the_rest =benchmark_retriever(retriever, corpus, queries, qrels)
+# pickle.dump([timetaken, recall, *the_rest], open("beir_results_dot_score.pkl", "wb"))
+# print(timetaken, recall)
 
 # print("Running MPC distance with basic top-k")
 # retriever = EvaluateRetrieval(model, score_function="mpc_dot_vanilla_topk",  k_values=[1,3,5, 10])
