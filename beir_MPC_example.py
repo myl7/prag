@@ -1,4 +1,8 @@
 import time
+import os
+
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
 from beir import util, LoggingHandler
 from beir.retrieval import models
 from beir.datasets.data_loader import GenericDataLoader
@@ -53,12 +57,15 @@ def benchmark_retriever(retriever, corpus, queries, qrels):
     )
 
 
-def setup(reduce_corpus_size: bool = True, sample_size: int = 500, proportion: float = 0.1):
+# def setup(reduce_corpus_size: bool = True, sample_size: int = 500, proportion: float = 0.1):
+def setup():
     """This is a good one-time function to run to start embedding the corpus and queries and then save them to file for later use."""
     from LocalDenseRetrievalExactSearch import DenseRetrievalExactSearch
 
     # Generate synthetic dataset instead of downloading
     num_docs = int(os.getenv("NUM_DOCS"))
+    suffix = f"{num_docs}"
+
     num_queries = 1
 
     corpus = {
@@ -74,7 +81,8 @@ def setup(reduce_corpus_size: bool = True, sample_size: int = 500, proportion: f
     # It's good to save these for reproducibility
     if not os.path.exists("datasets"):
         os.makedirs("datasets")
-    pickle.dump([corpus, qrels, queries], open("datasets/corpus_fiqa.pkl", "wb"))
+
+    pickle.dump([corpus, qrels, queries], open(f"datasets/corpus_fiqa_{suffix}.pkl", "wb"))
 
     #### Dense Retrieval using SBERT (Sentence-BERT) ####
     print("Beginning embedding")
@@ -88,12 +96,12 @@ def setup(reduce_corpus_size: bool = True, sample_size: int = 500, proportion: f
         k_values=[1, 3, 5, 50],
     )
 
-    model.preembed_queries(queries, save_path="datasets/query_embeddings_fiqa.pt")
-    model.preemebed_corpus(corpus, save_path="datasets/corpus_embeddings_fiqa.pt")
+    model.preembed_queries(queries, save_path=f"datasets/query_embeddings_fiqa_{suffix}.pt")
+    model.preemebed_corpus(corpus, save_path=f"datasets/corpus_embeddings_fiqa_{suffix}.pt")
 
-    model.load_preembeddings(
-        "datasets/corpus_embeddings_fiqa.pt", "datasets/query_embeddings_fiqa.pt"
-    )
+    # model.load_preembeddings(
+    #     f"datasets/corpus_embeddings_fiqa_{suffix}.pt", f"datasets/query_embeddings_fiqa_{suffix}.pt"
+    # )
 
     print("Finished embedding, testing out retrieval")
     # Now we benchmark normal dense retrieval
@@ -126,16 +134,26 @@ def setup(reduce_corpus_size: bool = True, sample_size: int = 500, proportion: f
     #         )
 
 
-setup(reduce_corpus_size=False, sample_size=500, proportion=0.1)
+num_docs = os.getenv("NUM_DOCS")
+top_k_env = os.getenv("TOP_K")
+suffix = f"{num_docs}"
 
-corpus, qrels, queries = pickle.load(open("datasets/corpus_fiqa.pkl", "rb"))
+if os.path.exists(f"datasets/corpus_fiqa_{suffix}.pkl"):
+    print("Loading existing dataset and embeddings")
+else:
+    print("No existing dataset found, generating now")
+    setup()
+
+corpus, qrels, queries = pickle.load(open(f"datasets/corpus_fiqa_{suffix}.pkl", "rb"))
 
 # Now we benchmark MPC dense retrieval
 print("Building BEIR model and loading pre-embeddings.")
 model = MPCDenseRetrievalExactSearch(None, corpus_chunk_size=512 * 6)
 
 # Load in premade embeddings
-model.load_preembeddings("datasets/corpus_embeddings_fiqa.pt", "datasets/query_embeddings_fiqa.pt")
+model.load_preembeddings(
+    f"datasets/corpus_embeddings_fiqa_{suffix}.pt", f"datasets/query_embeddings_fiqa_{suffix}.pt"
+)
 print("Loaded embeddings")
 
 # model._search(corpus, queries, top_k=5, score_function="dot_score");
@@ -171,4 +189,4 @@ print(timetaken, recall)
 #     pickle.dump(results, open("beir_results.pkl", "wb"))
 
 
-from beir.retrieval.search.dense import DenseRetrievalExactSearch
+# from beir.retrieval.search.dense import DenseRetrievalExactSearch
