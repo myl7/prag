@@ -61,7 +61,7 @@ def setup(reduce_corpus_size: bool = True, sample_size: int = 500, proportion: f
             corpus_new[corpus_id] = corpus[corpus_id]
         corpus = corpus_new
         return corpus, qrels, queries
-    
+
     if reduce_corpus_size:
         corpus, qrels, queries = reduce_corpus_size(corpus, qrels, queries, sample_size, proportion)
     print("Corpus size: {} on {} queries".format(len(corpus), len(queries)))
@@ -142,7 +142,7 @@ pickle.dump([timetaken, recall, *the_rest], open("beir_results_mpc_dot_topk.pkl"
 #     retriever = EvaluateRetrieval(model, score_function="cos_sim",  k_values=[1,3,5,10])
 #     timetaken, recall, *the_rest = benchmark_retriever(retriever, corpus, queries, qrels)
 #     results[score_function] = [timetaken, recall]
-    
+
 #     pickle.dump(results, open("beir_results.pkl", "wb"))
 
 
