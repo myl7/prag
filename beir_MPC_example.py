@@ -9,10 +9,14 @@ from MPCDenseRetrievalExactSearch import MPCDenseRetrievalExactSearch
 import logging
 import pathlib, os, numpy as np
 import random, pickle
-logging.basicConfig(format='%(asctime)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S',
-                    level=logging.INFO,
-                    handlers=[LoggingHandler()])
+
+logging.basicConfig(
+    format="%(asctime)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
+    handlers=[LoggingHandler()],
+)
+
 
 def benchmark_retriever(retriever, corpus, queries, qrels):
     start_time = time.time()
@@ -27,23 +31,44 @@ def benchmark_retriever(retriever, corpus, queries, qrels):
         recall_cap = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="r_cap")
         hole = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="hole")
         # print("Performance of DenseRetrievalExactSearch: {recall}, {precision}, {ndcg}, {map}, {mrr}, {recall_cap}, {hole}".format(recall=recall, precision=precision, ndcg=ndcg, map=_map, mrr=mrr, recall_cap=recall_cap, hole=hole))
-        print("Time taken: {:.2f} Recall@1: {}, Recall@5: {}".format(end_time-start_time, recall['Recall@1'], recall.get('Recall@5', np.NaN)))
+        print(
+            "Time taken: {:.2f} Recall@1: {}, Recall@5: {}".format(
+                end_time - start_time,
+                recall["Recall@1"],
+                recall.get("Recall@5", np.NaN),
+            )
+        )
     except:
-        print("Time taken: {:.2f}".format(end_time-start_time))
-        return end_time-start_time, None, None, None, None, None, None, results
-    return end_time-start_time, recall, precision, ndcg, mrr, recall_cap, hole, results
+        print("Time taken: {:.2f}".format(end_time - start_time))
+        return end_time - start_time, None, None, None, None, None, None, results
+    return (
+        end_time - start_time,
+        recall,
+        precision,
+        ndcg,
+        mrr,
+        recall_cap,
+        hole,
+        results,
+    )
+
 
 def setup(reduce_corpus_size: bool = True, sample_size: int = 500, proportion: float = 0.1):
     """This is a good one-time function to run to start embedding the corpus and queries and then save them to file for later use."""
     from LocalDenseRetrievalExactSearch import DenseRetrievalExactSearch
 
     # Generate synthetic dataset instead of downloading
-    num_docs = 100
-    num_queries = 2
+    num_docs = int(os.getenv("NUM_DOCS"))
+    num_queries = 1
 
-    corpus = {str(i): {"title": f"Doc {i}", "text": f"This is document {i}"} for i in range(num_docs)}
+    corpus = {
+        str(i): {"title": f"Doc {i}", "text": f"This is document {i}"} for i in range(num_docs)
+    }
     queries = {str(i): f"Query {i}" for i in range(num_queries)}
-    qrels = {str(i): {str(x): 1 for x in range(num_docs) if x % num_queries == i} for i in range(num_queries)} # Some random qrels
+    qrels = {
+        str(i): {str(x): 1 for x in range(num_docs) if x % num_queries == i}
+        for i in range(num_queries)
+    }  # Some random qrels
 
     print("Corpus size: {} on {} queries".format(len(corpus), len(queries)))
     # It's good to save these for reproducibility
@@ -54,37 +79,52 @@ def setup(reduce_corpus_size: bool = True, sample_size: int = 500, proportion: f
     #### Dense Retrieval using SBERT (Sentence-BERT) ####
     print("Beginning embedding")
     # embedding_model = models.SentenceBERT("msmarco-distilbert-base-v3", device="cuda")
-    embedding_model = None # Use None as we use random embeddings
+    embedding_model = None  # Use None as we use random embeddings
 
-    model = DenseRetrievalExactSearch(embedding_model, batch_size=256, corpus_chunk_size=512*2**6, k_values=[1,3,5,50])
+    model = DenseRetrievalExactSearch(
+        embedding_model,
+        batch_size=256,
+        corpus_chunk_size=512 * 2**6,
+        k_values=[1, 3, 5, 50],
+    )
 
     model.preembed_queries(queries, save_path="datasets/query_embeddings_fiqa.pt")
     model.preemebed_corpus(corpus, save_path="datasets/corpus_embeddings_fiqa.pt")
 
-    model.load_preembeddings("datasets/corpus_embeddings_fiqa.pt", "datasets/query_embeddings_fiqa.pt")
-
+    model.load_preembeddings(
+        "datasets/corpus_embeddings_fiqa.pt", "datasets/query_embeddings_fiqa.pt"
+    )
 
     print("Finished embedding, testing out retrieval")
     # Now we benchmark normal dense retrieval
-    retriever = EvaluateRetrieval(model, score_function="dot_score", k_values=[1,3,5])
-    results = retriever.retrieve(corpus, queries)
+    # retriever = EvaluateRetrieval(model, score_function="dot_score", k_values=[1, 3, 5])
+    # results = retriever.retrieve(corpus, queries)
 
     # timetaken, recall, precision, ndcg, mrr, recall_cap, hole, results = benchmark_retriever(retriever, corpus, queries, qrels)
 
-    top_k = 10
+    # top_k = 16
     # query_id = 1824
-    query_id = list(queries.keys())[0]
+    # query_id = list(queries.keys())[0]
 
     # query_id, ranking_scores = random.choice(list(results.items()))
-    ranking_scores = results[str(query_id)]
-    scores_sorted = sorted(ranking_scores.items(), key=lambda item: item[1], reverse=True)
-    print("Query : %s\n" % queries[str(query_id)])
+    # ranking_scores = results[str(query_id)]
+    # scores_sorted = sorted(ranking_scores.items(), key=lambda item: item[1], reverse=True)
+    # print("Query : %s\n" % queries[str(query_id)])
 
-    for rank in range(top_k):
-        if rank < len(scores_sorted):
-            doc_id = scores_sorted[rank][0]
-            # Format: Rank x: ID [Title] Body
-            print("Rank %d: %s [%s] - %s\n" % (rank+1, doc_id, corpus[doc_id].get("title"), corpus[doc_id].get("text")))
+    # for rank in range(top_k):
+    #     if rank < len(scores_sorted):
+    #         doc_id = scores_sorted[rank][0]
+    #         # Format: Rank x: ID [Title] Body
+    #         print(
+    #             "Rank %d: %s [%s] - %s\n"
+    #             % (
+    #                 rank + 1,
+    #                 doc_id,
+    #                 corpus[doc_id].get("title"),
+    #                 corpus[doc_id].get("text"),
+    #             )
+    #         )
+
 
 setup(reduce_corpus_size=False, sample_size=500, proportion=0.1)
 
@@ -92,7 +132,7 @@ corpus, qrels, queries = pickle.load(open("datasets/corpus_fiqa.pkl", "rb"))
 
 # Now we benchmark MPC dense retrieval
 print("Building BEIR model and loading pre-embeddings.")
-model = MPCDenseRetrievalExactSearch(None, corpus_chunk_size=512*6)
+model = MPCDenseRetrievalExactSearch(None, corpus_chunk_size=512 * 6)
 
 # Load in premade embeddings
 model.load_preembeddings("datasets/corpus_embeddings_fiqa.pt", "datasets/query_embeddings_fiqa.pt")
@@ -113,12 +153,13 @@ print("Loaded embeddings")
 # timetaken, recall, *the_rest =benchmark_retriever(retriever, corpus, queries, qrels)
 # pickle.dump([timetaken, recall, *the_rest], open("beir_results_dot_score.pkl", "wb"))
 
+k = int(os.getenv("TOP_K"))
 
 print("Running MPC distance with MPC top-k")
-retriever = EvaluateRetrieval(model, score_function="mpc_dot_topk",  k_values=[1,3,5])
-timetaken, recall, *the_rest =benchmark_retriever(retriever, corpus, queries, qrels)
+retriever = EvaluateRetrieval(model, score_function="mpc_dot_topk", k_values=[k])
+timetaken, recall, *the_rest = benchmark_retriever(retriever, corpus, queries, qrels)
 print(timetaken, recall)
-pickle.dump([timetaken, recall, *the_rest], open("beir_results_mpc_dot_topk.pkl", "wb"))
+# pickle.dump([timetaken, recall, *the_rest], open("beir_results_mpc_dot_topk.pkl", "wb"))
 
 # print("Now we loop through and benchmark everything, saving the results to beir_results.pkl")
 # results = {}
@@ -130,7 +171,4 @@ pickle.dump([timetaken, recall, *the_rest], open("beir_results_mpc_dot_topk.pkl"
 #     pickle.dump(results, open("beir_results.pkl", "wb"))
 
 
-
-
 from beir.retrieval.search.dense import DenseRetrievalExactSearch
-
