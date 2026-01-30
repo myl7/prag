@@ -11,9 +11,9 @@ for p in {14..20}; do
 done
 
 # Config 2: num_docs = 2**17 with different top_k
-# p from 0 to 6 inclusive
+# p from 4 to 10 inclusive
 num_docs_fixed=$((2**17))
-for p in {0..6}; do
+for p in {4..10}; do
     top_k=$((2**p))
     configs+=("NUM_DOCS=${num_docs_fixed} TOP_K=${top_k}")
 done
